@@ -11,6 +11,12 @@ const personOrHiring =
 const work =
   /\b(experience|background|career|timeline|role|job|work|project|stack|skill|skills|education|metric|metrics|nust|aimyable|aimy|motive|keeptruckin|educative|codeninja|infostack|mcards|rag|llm|agent|agents)\b/i;
 
+const tech =
+  /\b(aws|amazon web|cloud|gcp|azure|terraform|kubernetes|docker|django|flask|rails|ruby|python|typescript|javascript|react|next\.?js|openai|gemini|kafka|mqtt|ci\/cd|cicd|devops|lambda|redis|postgres|graphql|cdk|ecs|sqs)\b/i;
+
+const experienceDepth =
+  /\b(how many years|years of experience|how much experience|experience (in|with|using|on))\b/i;
+
 const hiring =
   /\b(hire|hiring|hired|candidate|fit|recruit|contract|freelance|job description|job posting|we are looking|we're looking|this role|the role|how well|good fit)\b/i;
 
@@ -33,7 +39,13 @@ function onTopic(message: string) {
   if (offTopic.test(text) && !hiring.test(text)) return false;
   if (hiring.test(text)) return true;
   if (jobPosting.test(text) && text.length > 120) return true;
-  return personOrHiring.test(text) || work.test(text);
+  if (experienceDepth.test(text) && (personOrHiring.test(text) || work.test(text) || tech.test(text))) {
+    return true;
+  }
+  if (tech.test(text) && /\b(experience|skill|skills|background|work|know|used|using)\b/i.test(text)) {
+    return true;
+  }
+  return personOrHiring.test(text) || work.test(text) || tech.test(text);
 }
 
 export function isInScope(message: string, earlierUserMessages: string[] = []) {

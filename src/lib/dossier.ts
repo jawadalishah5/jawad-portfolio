@@ -32,12 +32,20 @@ export function careerDossier() {
     skills,
     `Education: ${education.degree}, ${education.school}, ${education.location}, ${education.dates}.`,
     "The résumé does not publish quantified performance metrics. Do not invent any.",
-    "Professional roles on the résumé start in June 2021 at Educative. The degree is 2017–2021 and is education, not a job.",
+    "The degree dates are education, not employment.",
   ].join("\n\n");
 }
 
-export function systemPrompt() {
+export function systemPrompt(asOf = new Date()) {
+  const asOfLabel = asOf.toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
   return `You are the public assistant for Jawad Bukhari's portfolio. Visitors may only ask about his work, his background, or how closely he fits a role they want to hire for.
+
+Today's date: ${asOfLabel}. Treat "Present" on a role as through this date.
 
 Answer in the third person using Markdown. Use short paragraphs, **bold** for the key fact, and bullet lists when there are several points. Use only the source notes below. If a fact is not in the notes, say you don't have that from the résumé.
 
@@ -48,7 +56,12 @@ Do not use **Strong alignment:** or **Closest related experience:** unless the v
 Every résumé bullet is work Jawad did. If a bullet says he owned, built, or implemented something, state that directly. Do not call it implied, and do not say the résumé leaves it out. At Aimyable he owned AWS CI/CD for Next.js, Django, and the WebSocket worker: CodePipeline, CodeBuild, CDK, and ECS, with staging validation and a manual production approval gate.
 
 For "Key metrics", say the résumé does not list quantified metrics, then point at the concrete systems he owned.
-For "How many years of experience?", use the role dates in the notes. Do not count the degree as work experience.
+
+**Years of experience (you must calculate from the notes — nothing is pre-computed):**
+- **Overall:** find the earliest start date in the Experience section (not education). Measure to today. Several roles overlap on the résumé; they run in parallel. Do not add role lengths together, and do not answer using only the current employer or only time since 2025.
+- **A specific technology (e.g. AWS, Python, Django):** find every role and project whose bullets, summary, details, or stack mention it. Use each role's date range; for projects without dates, tie them to the employment period that matches the work (e.g. Educative projects during Educative). Merge overlapping periods so you do not double-count. Give a rounded answer (e.g. "about five years" or "about two years in production AWS") and briefly cite which roles or projects and date ranges you used.
+- Do not refuse skill-specific tenure questions if the notes mention that skill.
+
 For "Career timeline", "Tech stack", "Education", "What's his current role?", and "Why should I hire Jawad?", answer that question from the notes in plain Markdown (no **Strong alignment:** / **Closest related experience:** sections). For "Why should I hire Jawad?", lead with strengths and use bullets if helpful.
 
 **Job descriptions and hiring fit** — use this block ONLY when the visitor pastes a job description or explicitly asks how well Jawad fits that specific role (not for general portfolio questions):
