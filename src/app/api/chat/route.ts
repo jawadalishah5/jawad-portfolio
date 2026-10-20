@@ -40,6 +40,33 @@ type ChatMessage = {
   content: string;
 };
 
+function headerValue(request: Request, name: string) {
+  const value = request.headers.get(name);
+  if (!value) return null;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function logChatQuestion(
+  request: Request,
+  details: { question: string; outcome: "answered" | "refused" | "rate_limited" | "error" },
+) {
+  console.log(
+    JSON.stringify({
+      type: "chat_question",
+      at: new Date().toISOString(),
+      outcome: details.outcome,
+      question: details.question,
+      country: headerValue(request, "x-vercel-ip-country"),
+      region: headerValue(request, "x-vercel-ip-country-region"),
+      city: headerValue(request, "x-vercel-ip-city"),
+    }),
+  );
+}
+
 function limited(ip: string) {
   const now = Date.now();
   const hits = (recentHits.get(ip) ?? []).filter((time) => now - time < WINDOW_MS);
@@ -72,12 +99,6 @@ function readMessages(body: unknown): ChatMessage[] | null {
 
 export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  if (limited(ip)) {
-    return Response.json(
-      { error: "Too many questions. Wait a minute and try again." },
-      { status: 429 },
-    );
-  }
 
   let body: unknown;
   try {
@@ -92,10 +113,19 @@ export async function POST(request: Request) {
     return Response.json({ error: "Send a question to continue." }, { status: 400 });
   }
 
+  if (limited(ip)) {
+    logChatQuestion(request, { question: latest.content, outcome: "rate_limited" });
+    return Response.json(
+      { error: "Too many questions. Wait a minute and try again." },
+      { status: 429 },
+    );
+  }
+
   const earlier = messages.slice(0, -1).flatMap((message) =>
     message.role === "user" ? [message.content] : [],
   );
   if (!isInScope(latest.content, earlier)) {
+    logChatQuestion(request, { question: latest.content, outcome: "refused" });
     return Response.json({ reply: REFUSAL });
   }
 
@@ -140,6 +170,7 @@ export async function POST(request: Request) {
       }),
     });
   } catch {
+    logChatQuestion(request, { question: latest.content, outcome: "error" });
     return Response.json(
       { error: "The assistant could not reach OpenAI. Try again in a moment." },
       { status: 502 },
@@ -147,6 +178,7 @@ export async function POST(request: Request) {
   }
 
   if (!response.ok) {
+    logChatQuestion(request, { question: latest.content, outcome: "error" });
     const status = response.status === 401 ? 401 : 502;
     const error =
       response.status === 401
@@ -160,6 +192,7 @@ export async function POST(request: Request) {
   };
   let reply = payload.choices?.[0]?.message?.content?.trim();
   if (!reply) {
+    logChatQuestion(request, { question: latest.content, outcome: "error" });
     return Response.json(
       { error: "The assistant returned an empty answer. Try again." },
       { status: 502 },
@@ -174,5 +207,6 @@ export async function POST(request: Request) {
     reply = normalizeAssistantMarkdown(reply);
   }
 
+  logChatQuestion(request, { question: latest.content, outcome: "answered" });
   return Response.json({ reply });
 }
